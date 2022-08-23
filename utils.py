@@ -1,5 +1,7 @@
 import wifi
 import binascii
+import keys
+from time import sleep
 
 
 def get_wifi_access_points():
@@ -41,6 +43,7 @@ def get_wifi_access_points():
 
 
 def get_median(ls):
+    """ returns the median from a list """
     # sort the list
     ls_sorted = ls.sort()
     # find the median
@@ -53,3 +56,48 @@ def get_median(ls):
         m1 = int(len(ls)/2 - 1)
         m2 = int(len(ls)/2)
         return (ls[m1]+ls[m2])/2
+
+
+def get_sea_level_pressure(card, lat, lon):
+    """ get the sea level pressure from openweather api """
+
+    # temporarily set notecard into continuous mode for a web transaction
+    req = {"req": "hub.set"}
+    req["on"] = True
+    card.Transaction(req)
+
+    # connect notecard to notehub
+    req = {"req": "hub.sync"}
+    card.Transaction(req)
+
+    connectedToNotehub = False
+
+    while not connectedToNotehub:
+        req = {"req": "hub.status"}
+        rsp = card.Transaction(req)
+
+        if "connected" in rsp:
+            connectedToNotehub = True
+        else:
+            sleep(1)
+
+    # call openweather api to get latest pressure reading
+    weatherURL = "/weather?lat=" + \
+        str(lat) + "&lon=" + str(lon) + "&appid=" + keys.WEATHER_API_KEY
+
+    req = {"req": "web.get"}
+    req["route"] = "GetWeather"
+    req["name"] = weatherURL
+    rsp = card.Transaction(req)
+
+    pressure = 0
+
+    if rsp and "body" in rsp and "main" in rsp["body"] and "pressure" in rsp["body"]["main"]:
+        pressure = rsp["body"]["main"]["pressure"]
+
+    # set notecard back to periodic mode
+    req = {"req": "hub.set"}
+    req["off"] = True
+    card.Transaction(req)
+
+    return pressure

@@ -2,11 +2,10 @@ import keys
 import board
 import busio
 import notecard
-import adafruit_bme680
+from adafruit_bme280 import basic as adafruit_bme280
 import utils
 import time
 from time import sleep
-#from machine import Pin
 
 productUID = keys.PRODUCT_UID
 
@@ -14,9 +13,12 @@ productUID = keys.PRODUCT_UID
 i2c = busio.I2C(board.SCL, board.SDA)
 card = notecard.OpenI2C(i2c, 0, 0, debug=True)
 
-# create reference to BME680
-bme680 = adafruit_bme680.Adafruit_BME680_I2C(i2c, debug=False)
-bme680.sea_level_pressure = 1013.25
+# create reference to BME280
+bme280 = adafruit_bme280.Adafruit_BME280_I2C(i2c)
+bme280.sea_level_pressure = 1013.25
+
+lat_def = 43.05769554337394
+lon_def = -89.5070545945101
 
 # associate Notecard with a project on Notehub.io
 req = {"req": "hub.set"}
@@ -104,6 +106,11 @@ def get_gps_location():
 
             if this_gps_time > last_gps_time:
                 # got an updated gps location
+
+                if "lat" in rsp and "lon" in rsp:
+                    lat_def = rsp["lat"]
+                    lon_def = rsp["lon"]
+
                 result = True
                 break
 
@@ -150,34 +157,46 @@ def set_wifi_triangulation():
 def send_sensor_data(using_gps, using_wifi):
     """ send sensor data to the cloud with the Notecard """
 
+    # first get the updated sea level pressure
+    sl_pressure = utils.get_sea_level_pressure(card, lat_def, lon_def)
+
+    if sl_pressure <= 0:
+        sl_pressure = 1013.25
+
+    bme280.sea_level_pressure = sl_pressure
+    sleep(1)
+
     note_body = {}
 
     # get 50 readings from the sensor and use the median values
     temp_list = []
-    gas_list = []
     humidity_list = []
     pressure_list = []
     altitude_list = []
 
     for x in range(50):
-        temp_list.append(bme680.temperature)
-        gas_list.append(bme680.gas)
-        humidity_list.append(bme680.relative_humidity)
-        pressure_list.append(bme680.pressure)
-        altitude_list.append(bme680.altitude)
-        sleep(0.05)
+        temp_list.append(bme280.temperature)
+        humidity_list.append(bme280.relative_humidity)
+        pressure_list.append(bme280.pressure)
+        altitude_list.append(bme280.altitude)
+        sleep(0.1)
 
-    print("Temperature: %0.1f C" % utils.get_median(temp_list))
-    print("Gas: %d ohm" % utils.get_median(gas_list))
-    print("Humidity: %0.1f %%" % utils.get_median(humidity_list))
-    print("Pressure: %0.3f hPa" % utils.get_median(pressure_list))
-    print("Altitude = %0.2f meters" % utils.get_median(altitude_list))
+    med_temp = utils.get_median(temp_list)
+    med_humidity = utils.get_median(humidity_list)
+    med_pressure = utils.get_median(pressure_list)
+    med_altitude = utils.get_median(altitude_list)
 
-    note_body["temperature"] = utils.get_median(temp_list)
-    note_body["gas"] = utils.get_median(gas_list)
-    note_body["humidity"] = utils.get_median(humidity_list)
-    note_body["pressure"] = utils.get_median(pressure_list)
-    note_body["altitude"] = utils.get_median(altitude_list)
+    print("Temperature: %0.1f C" % med_temp)
+    print("Humidity: %0.1f %%" % med_humidity)
+    print("Pressure: %0.3f hPa" % med_pressure)
+    print("Altitude = %0.2f meters" % med_altitude)
+    print("Sea Level Pressure = %0.3f hPa" % sl_pressure)
+
+    note_body["temperature"] = med_temp
+    note_body["humidity"] = med_humidity
+    note_body["pressure"] = med_pressure
+    note_body["altitude"] = med_altitude
+    note_body["sealevelpressure"] = sl_pressure
 
     # get the battery voltage
     req = {"req": "card.voltage"}
@@ -200,4 +219,4 @@ def send_sensor_data(using_gps, using_wifi):
 
 while True:
     check_motion()
-    sleep(10)
+    sleep(60)

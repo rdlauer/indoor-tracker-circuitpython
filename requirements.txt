@@ -1,0 +1,2 @@
+note-python==1.4.6
+adafruit-circuitpython-bme280==2.6.13

@@ -2,7 +2,7 @@
 
 Learn how to build an indoor asset tracking solution with CircuitPython and the 
 [Blues Wireless Notecard](https://blues.io/products/notecard/) in this 
-[tutorial on Hackster](TODO).
+[tutorial on Hackster](https://www.hackster.io/rob-lauer/indoor-asset-tracking-using-wi-fi-triangulation-5c5963).
 
 ![](cover-image.png)
 
